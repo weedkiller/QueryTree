@@ -12,6 +12,7 @@ using System.Linq;
 using Microsoft.Extensions.Caching.Memory;
 using QueryTree.Enums;
 using QueryTree.ViewModels;
+using System.Text.RegularExpressions;
 
 
 namespace QueryTree.Managers
@@ -397,16 +398,22 @@ namespace QueryTree.Managers
                 }
             }
 
-            var tableByIdName = dbModel.Tables.ToDictionary(t => t.Name.ToLower() + "id");
-
             foreach (var table in dbModel.Tables)
             {
                 foreach (var column in table.Columns.Select(c => c as Models.DbColumn))
                 {
                     DbTable dbTable = null;
-                    if (column.IsPrimaryKey == false && column.Parent == null && tableByIdName.TryGetValue(column.Name.ToLower(), out dbTable))
+                    if (column.IsPrimaryKey == false && column.Parent == null)
                     {
-                        column.Parent = dbTable.Columns[0] as Models.DbColumn;
+                        dbTable = dbModel.Tables.FirstOrDefault(t => 
+                            t.Schema == table.Schema && 
+                            ((t.Name.ToLower() + "_id") == column.Name.ToLower()) ||
+                            ((t.Name.ToLower() + "id") == column.Name.ToLower()));
+                     
+                        if (dbTable != null)
+                        {
+                            column.Parent = dbTable.Columns[0] as Models.DbColumn;
+                        }
                     }
                 }
             }
@@ -614,7 +621,7 @@ namespace QueryTree.Managers
                     conn.Open();
                     break;
                 case DatabaseType.SQLServer:
-                    conn = new SqlConnection(string.Format("Data Source={0},{1};Database={2};User Id={3};Password={4};Encrypt=True;TrustServerCertificate=True;", server, port, databaseName, username, password));
+                    conn = new SqlConnection(string.Format("Server=tcp:{0},{1};Initial Catalog={2};User ID={3};Password={4};Encrypt=True;TrustServerCertificate=True;", server, port, databaseName, username, password));
                     conn.Open();
                     break;
             }
@@ -642,6 +649,14 @@ namespace QueryTree.Managers
             return cmd;
         }
 
+        // Sometimes DbDataReader.GetDataTypeName returns a length specifier, which isn't useful
+        // to QueryTree, is different to the GetDbModel data and breaks things. This removes it
+        private string RemoveLengthSpecifier(string databaseType)
+        {
+            var re = new Regex("\\([0-9]*\\)$");
+            return re.Replace(databaseType, "");
+        }
+
         public QueryResponse GetData(DatabaseConnection connection, string nodes, string nodeId, int? startRow, int? rowCount)
         {
             var data = new QueryResponse() { Status = "ok" };
@@ -665,7 +680,7 @@ namespace QueryTree.Managers
                         for (int i = 0; i < reader.FieldCount; i++)
                         {
                             data.Columns.Add(reader.GetName(i));
-                            data.ColumnTypes.Add(reader.GetDataTypeName(i));
+                            data.ColumnTypes.Add(RemoveLengthSpecifier(reader.GetDataTypeName(i)));
                         }
 
                         while (reader.Read())

@@ -843,7 +843,7 @@ var SimpleQueryBuilderViewModel = function () {
 
     self.exportUrl = ko.pureComputed(function () {
         if (self.serverQueryKey()) {
-            return "/api/cache/" + self.serverQueryKey() + "/" + self.selectedNode().Id + "/export/";
+            return backend.baseUri + "/api/cache/" + self.serverQueryKey() + "/" + self.selectedNode().Id + "/export/";
         } else {
             return null;
         }
@@ -1232,7 +1232,7 @@ var SimpleQueryBuilderViewModel = function () {
                     if (settingTree.Type == 'Filter') {
                         self.addFilter(settingTree);
                     }
-                    if (settingTree.Type == 'Statistics2') {
+                    if (settingTree.Type == 'Summarize') {
                         self.addStatistic(settingTree);
                     }
                     if ($.inArray(settingTree.Type, ['Line Chart', 'Bar Chart', 'Pie Chart']) >= 0) {
